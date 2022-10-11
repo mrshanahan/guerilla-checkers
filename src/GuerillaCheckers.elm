@@ -27,24 +27,81 @@ main =
 -- MODEL
 
 type alias Model =
-  { color : Color
+  { coins : List (Int, Int)
+  , guerillas : List (Int, Int)
+  , guerillasRemaining: Int
+  , selectedCoin : Maybe (Int, Int)
   }
 
 init : () -> (Model, Cmd Msg)
 init _ =
-  ( Model White
+  ( Model
+      [ (2, 3)
+      , (3, 4)
+      , (4, 5)
+      , (3, 2)
+      , (4, 3)
+      , (5, 4)
+      ]
+      []
+      66
+      Nothing
   , Cmd.none
   )
 
 -- UPDATE
 
-type Msg = NewColor Color
+type Msg
+  = SelectCoin (Int, Int)
+  | DeselectCoin
+  | MoveCoin (Int, Int)
+  | PlaceGuerilla (Int, Int)
+
+-- TODO: Boundary check on these guys on both ends
+
+moveCoin : List (Int, Int) -> (Int, Int) -> (Int, Int) -> List (Int, Int)
+moveCoin coins pos1 pos2 =
+  if not <| List.member pos1 coins then
+    coins
+  else if List.member pos2 coins then
+    coins
+  else
+    List.filter ((/=) pos1) coins |> (::) pos2
+
+find : a -> List a -> Maybe a
+find x = List.filter ((==) x) >> List.head
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    NewColor c ->
-      ( Model c
+    SelectCoin pos ->
+      ( { model
+        | selectedCoin = find pos model.coins
+        }
+      , Cmd.none
+      )
+    DeselectCoin ->
+      ( { model | selectedCoin = Nothing }
+      , Cmd.none
+      )
+    MoveCoin newpos ->
+      let
+        newCoins =
+          case model.selectedCoin of
+            Nothing  -> model.coins
+            Just pos -> moveCoin model.coins pos newpos
+      in
+      ( { model
+        | coins = newCoins
+        , selectedCoin = Nothing
+        }
+      , Cmd.none
+      )
+    PlaceGuerilla pos ->
+      ( { model
+        | guerillas = pos :: model.guerillas
+        , guerillasRemaining = model.guerillasRemaining - 1
+        }
       , Cmd.none
       )
 
@@ -56,17 +113,12 @@ subscriptions model =
 
 -- VIEW
 
-type alias Board =
-  { coins : List (Int, Int)
-  , guerillas : List (Int, Int)
-  , guerillasRemaining: Int
-  }
-
 type Color = White | Black
 
 type alias ColorConfig =
   { border : String
   , coin : String
+  , selectedCoin : String
   , guerilla : String
   }
 
@@ -74,6 +126,7 @@ colorConfig : ColorConfig
 colorConfig =
   { border = "white"
   , coin = "red"
+  , selectedCoin = "yellow"
   , guerilla = "black"
   }
 
@@ -82,11 +135,14 @@ color c = case c of
   White -> "lightgray"
   Black -> "gray"
 
-newSquare : Color -> (Int, Int) -> Svg Msg
-newSquare c (xcoord,ycoord) =
+newBoardSq : Color -> (Int, Int) -> Svg Msg
+newBoardSq c (xcoord,ycoord) =
+  let
+    (xcoord2,ycoord2) = fromSquareCoords (xcoord,ycoord)
+  in
   rect
-    [ x <| String.fromInt xcoord
-    , y <| String.fromInt ycoord
+    [ x <| String.fromInt xcoord2
+    , y <| String.fromInt ycoord2
     , width "50"
     , height "50"
     , stroke colorConfig.border
@@ -95,16 +151,55 @@ newSquare c (xcoord,ycoord) =
     ]
     []
 
-newNode : (Int, String) -> (Int, Int) -> Svg Msg
-newNode (rad, c) (xcoord,ycoord) =
+newBoardNode : (Int, Int) -> Svg Msg
+newBoardNode pos =
+  let
+    (bx,by) = fromNodeCoords pos
+  in
   circle
-  [ cx <| String.fromInt xcoord
-  , cy <| String.fromInt ycoord
-  , r <| String.fromInt rad
-  , fill c
-  , stroke c
+  [ cx <| String.fromInt bx
+  , cy <| String.fromInt by
+  , r "5"
+  , fill colorConfig.border
+  , stroke colorConfig.border
   ]
   []
+
+newGuerilla : (Int, Int) -> Svg Msg
+newGuerilla pos =
+  let
+    (bx,by) = fromNodeCoords pos
+  in
+  circle
+  [ cx <| String.fromInt bx
+  , cy <| String.fromInt by
+  , r "10"
+  , fill colorConfig.guerilla
+  , stroke colorConfig.guerilla
+  ]
+  []
+
+newCoin : Bool -> (Int, Int) -> Svg Msg
+newCoin selected pos =
+  let
+    (bx,by) = fromCoinCoords pos
+    c = if selected then colorConfig.selectedCoin else colorConfig.coin
+  in
+  circle
+  [ cx <| String.fromInt bx
+  , cy <| String.fromInt by
+  , r "20"
+  , fill c
+  , stroke c
+  , onClick (if selected then DeselectCoin else SelectCoin pos)
+  ]
+  []
+
+newSelectedCoin : (Int, Int) -> Svg Msg
+newSelectedCoin = newCoin True
+
+newUnselectedCoin : (Int, Int) -> Svg Msg
+newUnselectedCoin = newCoin False
 
 fromNodeCoords : (Int, Int) -> (Int, Int)
 fromNodeCoords (x, y) =
@@ -123,18 +218,6 @@ fromCoinCoords (x, y) =
   ( x * 50 + 25
   , y * 50 + 25
   )
-
-newBoardNode : (Int, Int) -> Svg Msg
-newBoardNode = fromNodeCoords >> newNode (5, colorConfig.border)
-
-newGuerilla : (Int, Int) -> Svg Msg
-newGuerilla = fromNodeCoords >> newNode (10, colorConfig.guerilla)
-
-newCoin : (Int, Int) -> Svg Msg
-newCoin = fromCoinCoords >> newNode (20, colorConfig.coin)
-
-newBoardSq : Color -> (Int, Int) -> Svg Msg
-newBoardSq c = fromSquareCoords >> newSquare c
 
 initBoard : List (Svg Msg)
 initBoard =
@@ -173,6 +256,25 @@ initBoard =
   in
     List.append board nodes
 
+generateBoard : Model -> List (Svg Msg)
+generateBoard
+  { coins, selectedCoin, guerillas, guerillasRemaining } =
+  let
+    selected =
+      case selectedCoin of
+        Nothing  -> []
+        Just pos -> List.filter ((==) pos) coins |> List.map newSelectedCoin
+    unselected =
+      case selectedCoin of
+        Nothing  -> coins |> List.map newUnselectedCoin
+        Just pos -> List.filter ((/=) pos) coins |> List.map newUnselectedCoin
+  in
+  [ initBoard
+  , selected
+  , unselected
+  , List.map newGuerilla guerillas
+  ] |> List.concat
+
 view : Model -> Html Msg
 view model =
   div []
@@ -180,18 +282,5 @@ view model =
       [ width "400"
       , height "400"
       ]
-      (
-        List.append 
-          initBoard
-          -- Sample data
-          [ newCoin (2, 3)
-          , newCoin (3, 4)
-          , newCoin (4, 5)
-          , newCoin (3, 2)
-          , newCoin (4, 3)
-          , newCoin (5, 4)
-
-          , newGuerilla (0, 0)
-          ]
-      )
+      (generateBoard model)
     ]
