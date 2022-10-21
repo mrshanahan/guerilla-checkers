@@ -195,6 +195,24 @@ newCoin selected pos =
   ]
   []
 
+newClickableSq : (Int, Int) -> Svg Msg
+newClickableSq (xcoord,ycoord) =
+  let
+    (xcoord2,ycoord2) = fromSquareCoords (xcoord,ycoord)
+  in
+  rect
+    [ x <| String.fromInt xcoord2
+    , y <| String.fromInt ycoord2
+    , width "50"
+    , height "50"
+    , stroke "transparent"
+    , strokeWidth "0"
+    , fill "transparent"
+    , fillOpacity "0.0"
+    , onClick (MoveCoin (xcoord,ycoord))
+    ]
+    []
+
 newSelectedCoin : (Int, Int) -> Svg Msg
 newSelectedCoin = newCoin True
 
@@ -234,9 +252,7 @@ initBoard =
       [ List.repeat 4 [ Black, White ]
       , List.repeat 4 [ White, Black ]
       ]
-      |> List.concat
-      |> List.concat
-      |> List.concat
+      |> (List.concat >> List.concat >> List.concat)
       |> List.indexedMap mkSq
 
     mkBoardNode (idx,sq) =
@@ -255,6 +271,13 @@ initBoard =
       |> List.concatMap mkBoardNode
   in
     List.append board nodes
+
+coinNeighbors : (Int, Int) -> List (Int, Int)
+coinNeighbors (x,y) =
+  let
+    isInRange (x2,y2) = x2 >= 0 && y2 >= 0 && x2 < 8 && y2 < 8
+  in
+    List.filter isInRange [(x-1,y-1), (x-1,y+1), (x+1,y-1), (x+1,y+1)]
 
 generateBoard : Model -> List (Svg Msg)
 generateBoard
@@ -275,6 +298,16 @@ generateBoard
   , List.map newGuerilla guerillas
   ] |> List.concat
 
+generateClickMaps : Model -> List (Svg Msg)
+generateClickMaps
+  { coins, selectedCoin, guerillas, guerillasRemaining } =
+  let
+    flip f b a = f a b
+  in
+  case selectedCoin of
+    Just spos -> coinNeighbors spos |> List.filter (not << flip List.member coins) |> List.map newClickableSq
+    Nothing   -> []
+
 view : Model -> Html Msg
 view model =
   div []
@@ -282,5 +315,5 @@ view model =
       [ width "400"
       , height "400"
       ]
-      (generateBoard model)
+      (List.concat <| [ (generateBoard model), (generateClickMaps model) ])
     ]
