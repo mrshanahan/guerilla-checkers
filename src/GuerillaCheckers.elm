@@ -65,6 +65,8 @@ moveCoin coins pos1 pos2 =
     coins
   else if List.member pos2 coins then
     coins
+  else if not <| List.member pos2 (coinNeighbors pos1) then
+    coins
   else
     List.filter ((/=) pos1) coins |> (::) pos2
 
@@ -99,7 +101,7 @@ update msg model =
       )
     PlaceGuerilla pos ->
       ( { model
-        | guerillas = pos :: model.guerillas
+        | guerillas = List.sort <| pos :: model.guerillas
         , guerillasRemaining = model.guerillasRemaining - 1
         }
       , Cmd.none
@@ -134,6 +136,22 @@ color : Color -> String
 color c = case c of
   White -> "lightgray"
   Black -> "gray"
+
+combinations : List a -> List b -> List (a,b)
+combinations xs ys =
+  case (xs, ys) of
+    ([], _)       -> []
+    (_, [])       -> []
+    (x::xs2, ys2) ->
+      List.append
+        (List.map (Tuple.pair x) ys2)
+        (combinations xs2 ys2)
+
+squareCoords : List (Int, Int)
+squareCoords = combinations (List.range 0 7) (List.range 0 7)
+
+nodeCoords : List (Int, Int)
+nodeCoords = combinations (List.range 0 6) (List.range 0 6)
 
 newBoardSq : Color -> (Int, Int) -> Svg Msg
 newBoardSq c (xcoord,ycoord) =
@@ -176,6 +194,23 @@ newGuerilla pos =
   , r "10"
   , fill colorConfig.guerilla
   , stroke colorConfig.guerilla
+  ]
+  []
+
+newGuerillaPlacement : (Int, Int) -> Svg Msg
+newGuerillaPlacement pos =
+  let
+    (bx,by) = fromNodeCoords pos
+  in
+  circle
+  [ cx <| String.fromInt bx
+  , cy <| String.fromInt by
+  , r "10"
+  , stroke "transparent"
+  --, fill "yellow"
+  , fill "transparent"
+  , fillOpacity "0.3"
+  , onClick (PlaceGuerilla pos)
   ]
   []
 
@@ -240,35 +275,10 @@ fromCoinCoords (x, y) =
 initBoard : List (Svg Msg)
 initBoard =
   let
-    mkSq idx c =
-      let
-        x = modBy 8 idx
-        y = idx // 8
-      in
-        newBoardSq c (x, y)
-
-    board =
-      List.repeat 4
-      [ List.repeat 4 [ Black, White ]
-      , List.repeat 4 [ White, Black ]
-      ]
-      |> (List.concat >> List.concat >> List.concat)
-      |> List.indexedMap mkSq
-
-    mkBoardNode (idx,sq) =
-      let
-        x = modBy 8 idx
-        y = idx // 8
-      in
-        if modBy 8 idx == 7 || idx // 8 == 7 then
-          []
-        else
-          [ newBoardNode (x,y) ]
-
-    nodes = 
-      board
-      |> List.indexedMap (\idx sq -> (idx, sq))
-      |> List.concatMap mkBoardNode
+    coord2Color (x,y) = if modBy 2 (x+y) == 0 then Black else White
+    makeSq pos = newBoardSq (coord2Color pos) pos
+    board = List.map makeSq squareCoords
+    nodes = List.map newBoardNode nodeCoords
   in
     List.append board nodes
 
@@ -281,7 +291,7 @@ coinNeighbors (x,y) =
 
 generateBoard : Model -> List (Svg Msg)
 generateBoard
-  { coins, selectedCoin, guerillas, guerillasRemaining } =
+  { coins, selectedCoin, guerillas } =
   let
     selected =
       case selectedCoin of
@@ -298,15 +308,40 @@ generateBoard
   , List.map newGuerilla guerillas
   ] |> List.concat
 
-generateClickMaps : Model -> List (Svg Msg)
-generateClickMaps
-  { coins, selectedCoin, guerillas, guerillasRemaining } =
+generateCoinTargets : Model -> List (Svg Msg)
+generateCoinTargets { coins, selectedCoin } =
   let
     flip f b a = f a b
   in
   case selectedCoin of
     Just spos -> coinNeighbors spos |> List.filter (not << flip List.member coins) |> List.map newClickableSq
     Nothing   -> []
+
+-- NB: Assumes both lists are sorted
+seqDiff : List a -> List a -> List a
+seqDiff =
+  let
+      seqDiffInner acc xs ys =
+        case (xs,ys) of
+          ([],_)          -> List.reverse acc
+          (xs2,[])        -> List.append (List.reverse acc) xs2
+          (x::xs2,y::ys2) ->
+            if x == y then
+              seqDiffInner acc xs2 ys2
+            else
+              seqDiffInner (x::acc) xs2 (y::ys2)
+  in
+    seqDiffInner []
+
+availableGuerillaPlacements : Model -> List (Int,Int)
+availableGuerillaPlacements { guerillas, guerillasRemaining } =
+  if guerillasRemaining > 0
+  then seqDiff nodeCoords guerillas
+  else []
+
+generateGuerillaPlacements : Model -> List (Svg Msg)
+generateGuerillaPlacements =
+  availableGuerillaPlacements >> List.map newGuerillaPlacement
 
 view : Model -> Html Msg
 view model =
@@ -315,5 +350,10 @@ view model =
       [ width "400"
       , height "400"
       ]
-      (List.concat <| [ (generateBoard model), (generateClickMaps model) ])
+      (List.concat <|
+        [ (generateBoard model)
+        , (generateCoinTargets model)
+        , (generateGuerillaPlacements model)
+        ]
+      )
     ]
