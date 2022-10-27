@@ -33,9 +33,9 @@ type alias Model =
   , selectedCoin : Maybe (Int, Int)
   }
 
-init : () -> (Model, Cmd Msg)
-init _ =
-  ( Model
+initBoard : Model
+initBoard =
+  Model
       [ (2, 3)
       , (3, 4)
       , (4, 5)
@@ -46,8 +46,9 @@ init _ =
       []
       66
       Nothing
-  , Cmd.none
-  )
+
+init : () -> (Model, Cmd Msg)
+init _ = (initBoard, Cmd.none)
 
 -- UPDATE
 
@@ -56,6 +57,7 @@ type Msg
   | DeselectCoin
   | MoveCoin (Int, Int)
   | PlaceGuerilla (Int, Int)
+  | ResetBoard
 
 -- TODO: Boundary check on these guys on both ends
 
@@ -106,6 +108,8 @@ update msg model =
         }
       , Cmd.none
       )
+    ResetBoard ->
+      init ()
 
 -- SUBSCRIPTIONS
 
@@ -272,8 +276,8 @@ fromCoinCoords (x, y) =
   , y * 50 + 25
   )
 
-initBoard : List (Svg Msg)
-initBoard =
+baseBoard : List (Svg Msg)
+baseBoard =
   let
     coord2Color (x,y) = if modBy 2 (x+y) == 0 then Black else White
     makeSq pos = newBoardSq (coord2Color pos) pos
@@ -302,7 +306,7 @@ generateBoard
         Nothing  -> coins |> List.map newUnselectedCoin
         Just pos -> List.filter ((/=) pos) coins |> List.map newUnselectedCoin
   in
-  [ initBoard
+  [ baseBoard
   , selected
   , unselected
   , List.map newGuerilla guerillas
@@ -346,14 +350,18 @@ generateGuerillaPlacements =
 view : Model -> Html Msg
 view model =
   div []
-    [ svg
-      [ width "400"
-      , height "400"
-      ]
-      (List.concat <|
-        [ (generateBoard model)
-        , (generateCoinTargets model)
-        , (generateGuerillaPlacements model)
+    [ div []
+      [ svg
+        [ width "400"
+        , height "400"
         ]
-      )
+        (List.concat <|
+          [ (generateBoard model)
+          , (generateCoinTargets model)
+          , (generateGuerillaPlacements model)
+          ]
+        )
+      ]
+    , div []
+      [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
     ]
