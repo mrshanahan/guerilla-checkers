@@ -275,7 +275,7 @@ newClickableSq (xcoord,ycoord) =
   , height "50"
   , stroke "transparent"
   , strokeWidth "0"
-  , fill "red"
+  , fill colorConfig.coin
   , fillOpacity "0.2"
   , onClick (MoveCoin (xcoord,ycoord))
   ]
