@@ -85,14 +85,32 @@ stringFromTuple : (Int, Int) -> String
 stringFromTuple (x,y) = "(" ++ (String.fromInt x) ++ "," ++ (String.fromInt y) ++ ")"
 
 stringFromMessage : Model -> Msg -> String
-stringFromMessage { selectedCoin } msg =
+stringFromMessage { selectedCoin, guerillasRemaining } msg =
   case msg of
     MoveCoin dst ->
       case selectedCoin of
         Just src -> "COIN: " ++ stringFromTuple src ++ " -> " ++ stringFromTuple dst
         Nothing  -> ""
-    PlaceGuerilla pos -> "GUERILLA: " ++ stringFromTuple pos
-    _ -> ""
+    PlaceGuerilla pos ->
+      "GUERILLA: " ++ stringFromTuple pos ++
+      " (left: " ++ String.fromInt guerillasRemaining ++ ")"
+    _ ->
+      ""
+
+findCapture : List (Int, Int) -> (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
+findCapture guerillas (x1,y1) (x2,y2) =
+  let
+    potential =
+      ( if x1 < x2 then x1 else x2
+      , if y1 < y2 then y1 else y2
+      )
+  in
+  find potential guerillas
+
+stringFromMaybe : (a -> String) -> Maybe a -> String
+stringFromMaybe f ma =
+  Maybe.map f ma
+  |> Maybe.withDefault ""
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -116,12 +134,21 @@ update msg model =
           case model.selectedCoin of
             Nothing  -> model.coins
             Just pos -> moveCoin model.coins pos newpos
+        captured = model.selectedCoin |> Maybe.andThen (findCapture model.guerillas newpos)
+        newGuerillas =
+          case captured of
+            Nothing  -> model.guerillas
+            Just pos -> List.filter (\g -> g /= pos) model.guerillas
+        fullMessage =
+          logMessage
+          ++ stringFromMaybe (\pos -> " (captured: " ++ stringFromTuple pos ++ ")") captured
       in
       ( { model
         | coins = newCoins
+        , guerillas = newGuerillas
         , selectedCoin = Nothing
         , turn = Guerilla
-        , log = if String.isEmpty logMessage then model.log else logMessage :: model.log
+        , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
         }
       , Cmd.none
       )
