@@ -26,11 +26,14 @@ main =
 
 -- MODEL
 
+type Turn = Coin | Guerilla
+
 type alias Model =
   { coins : List (Int, Int)
   , guerillas : List (Int, Int)
   , guerillasRemaining: Int
   , selectedCoin : Maybe (Int, Int)
+  , turn : Turn
   }
 
 initBoard : Model
@@ -46,6 +49,7 @@ initBoard =
       []
       66
       Nothing
+      Guerilla
 
 init : () -> (Model, Cmd Msg)
 init _ = (initBoard, Cmd.none)
@@ -98,6 +102,7 @@ update msg model =
       ( { model
         | coins = newCoins
         , selectedCoin = Nothing
+        , turn = Guerilla
         }
       , Cmd.none
       )
@@ -105,6 +110,7 @@ update msg model =
       ( { model
         | guerillas = List.sort <| pos :: model.guerillas
         , guerillasRemaining = model.guerillasRemaining - 1
+        , turn = Coin
         }
       , Cmd.none
       )
@@ -218,44 +224,47 @@ newGuerillaPlacement pos =
   ]
   []
 
-newCoin : Bool -> (Int, Int) -> Svg Msg
-newCoin selected pos =
+newCoin : Bool -> Turn -> (Int, Int) -> Svg Msg
+newCoin selected turn pos =
   let
     (bx,by) = fromCoinCoords pos
     c = if selected then colorConfig.selectedCoin else colorConfig.coin
+    eh = if turn == Coin then [ onClick (if selected then DeselectCoin else SelectCoin pos) ] else []
   in
   circle
-  [ cx <| String.fromInt bx
-  , cy <| String.fromInt by
-  , r "20"
-  , fill c
-  , stroke c
-  , onClick (if selected then DeselectCoin else SelectCoin pos)
-  ]
+  ( List.append
+    [ cx <| String.fromInt bx
+    , cy <| String.fromInt by
+    , r "20"
+    , fill c
+    , stroke c
+    ]
+    eh
+  )
   []
 
 newClickableSq : (Int, Int) -> Svg Msg
 newClickableSq (xcoord,ycoord) =
   let
-    (xcoord2,ycoord2) = fromSquareCoords (xcoord,ycoord)
+    (xcoordr,ycoordr) = fromSquareCoords (xcoord,ycoord)
   in
   rect
-    [ x <| String.fromInt xcoord2
-    , y <| String.fromInt ycoord2
-    , width "50"
-    , height "50"
-    , stroke "transparent"
-    , strokeWidth "0"
-    , fill "transparent"
-    , fillOpacity "0.0"
-    , onClick (MoveCoin (xcoord,ycoord))
-    ]
-    []
+  [ x <| String.fromInt xcoordr
+  , y <| String.fromInt ycoordr
+  , width "50"
+  , height "50"
+  , stroke "transparent"
+  , strokeWidth "0"
+  , fill "red"
+  , fillOpacity "0.2"
+  , onClick (MoveCoin (xcoord,ycoord))
+  ]
+  []
 
-newSelectedCoin : (Int, Int) -> Svg Msg
+newSelectedCoin : Turn -> (Int, Int) -> Svg Msg
 newSelectedCoin = newCoin True
 
-newUnselectedCoin : (Int, Int) -> Svg Msg
+newUnselectedCoin : Turn -> (Int, Int) -> Svg Msg
 newUnselectedCoin = newCoin False
 
 fromNodeCoords : (Int, Int) -> (Int, Int)
@@ -295,16 +304,16 @@ coinNeighbors (x,y) =
 
 generateBoard : Model -> List (Svg Msg)
 generateBoard
-  { coins, selectedCoin, guerillas } =
+  { coins, selectedCoin, guerillas, turn } =
   let
     selected =
       case selectedCoin of
         Nothing  -> []
-        Just pos -> List.filter ((==) pos) coins |> List.map newSelectedCoin
+        Just pos -> List.filter ((==) pos) coins |> List.map (newSelectedCoin turn)
     unselected =
       case selectedCoin of
-        Nothing  -> coins |> List.map newUnselectedCoin
-        Just pos -> List.filter ((/=) pos) coins |> List.map newUnselectedCoin
+        Nothing  -> coins |> List.map (newUnselectedCoin turn)
+        Just pos -> List.filter ((/=) pos) coins |> List.map (newUnselectedCoin turn)
   in
   [ baseBoard
   , selected
@@ -318,8 +327,12 @@ generateCoinTargets { coins, selectedCoin } =
     flip f b a = f a b
   in
   case selectedCoin of
-    Just spos -> coinNeighbors spos |> List.filter (not << flip List.member coins) |> List.map newClickableSq
-    Nothing   -> []
+    Just spos ->
+      coinNeighbors spos
+      |> List.filter (not << flip List.member coins)
+      |> List.map newClickableSq
+    Nothing ->
+      []
 
 -- NB: Assumes both lists are sorted
 seqDiff : List a -> List a -> List a
@@ -338,14 +351,20 @@ seqDiff =
     seqDiffInner []
 
 availableGuerillaPlacements : Model -> List (Int,Int)
-availableGuerillaPlacements { guerillas, guerillasRemaining } =
-  if guerillasRemaining > 0
+availableGuerillaPlacements { guerillas, guerillasRemaining, turn } =
+  if guerillasRemaining > 0 && turn == Guerilla
   then seqDiff nodeCoords guerillas
   else []
 
 generateGuerillaPlacements : Model -> List (Svg Msg)
 generateGuerillaPlacements =
   availableGuerillaPlacements >> List.map newGuerillaPlacement
+
+fromTurn : Turn -> String
+fromTurn t =
+  case t of
+    Guerilla -> "Guerilla"
+    Coin -> "Coin"
 
 view : Model -> Html Msg
 view model =
@@ -362,6 +381,6 @@ view model =
           ]
         )
       ]
-    , div []
-      [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
+    , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
+    , div [] [ Html.text <| "Turn: " ++ (fromTurn model.turn) ]
     ]
