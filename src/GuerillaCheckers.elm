@@ -153,8 +153,36 @@ update msg model =
       , Cmd.none
       )
     PlaceGuerilla pos ->
+      let
+        newGuerillas = List.sort <| pos :: model.guerillas
+
+        potentialCapturableSquares (x,y) = [ (x,y), (x+1,y), (x,y+1), (x+1,y+1) ]
+
+        isCapturableSquare (x,y) =
+          let
+            capturingGuerillas =
+              if x == 0 && y == 0      then [ (0,0) ]
+              else if x == 0 && y == 7 then [ (0,6) ]
+              else if x == 7 && y == 0 then [ (6,0) ]
+              else if x == 7 && y == 7 then [ (6,6) ]
+              else if x == 0           then [ (0,y-1), (0,y) ]
+              else if y == 0           then [ (x-1,0), (x,0) ]
+              else if x == 7           then [ (6,y-1), (6,y) ]
+              else if y == 7           then [ (x-1,6), (x,6) ]
+              else                          [ (x-1,y-1), (x,y-1), (x-1,y), (x,y) ]
+          in
+          List.all (\g -> List.member g newGuerillas) capturingGuerillas
+
+        captured =
+          potentialCapturableSquares pos
+          |> List.filter (\sq -> List.member sq model.coins && isCapturableSquare sq)
+          |> List.sort
+
+        newCoins = seqDiff model.coins captured
+      in
       ( { model
-        | guerillas = List.sort <| pos :: model.guerillas
+        | coins = newCoins
+        , guerillas = newGuerillas
         , guerillasRemaining = model.guerillasRemaining - 1
         , turn = Coin
         , log = if String.isEmpty logMessage then model.log else logMessage :: model.log
