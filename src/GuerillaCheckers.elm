@@ -458,6 +458,8 @@ view model =
       ]
     , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
     , div [] [ Html.text <| "Turn: " ++ fromTurn model.turn ]
+    , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.coins) ]
+    , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.guerillasRemaining ]
     , div [] [ Html.text <| "Log:" ]
     , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
     ]
