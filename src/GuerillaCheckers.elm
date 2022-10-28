@@ -34,6 +34,7 @@ type alias Model =
   , guerillasRemaining: Int
   , selectedCoin : Maybe (Int, Int)
   , turn : Turn
+  , log : List String
   }
 
 initBoard : Model
@@ -50,6 +51,7 @@ initBoard =
       66
       Nothing
       Guerilla
+      []
 
 init : () -> (Model, Cmd Msg)
 init _ = (initBoard, Cmd.none)
@@ -79,8 +81,24 @@ moveCoin coins pos1 pos2 =
 find : a -> List a -> Maybe a
 find x = List.filter ((==) x) >> List.head
 
+stringFromTuple : (Int, Int) -> String
+stringFromTuple (x,y) = "(" ++ (String.fromInt x) ++ "," ++ (String.fromInt y) ++ ")"
+
+stringFromMessage : Model -> Msg -> String
+stringFromMessage { selectedCoin } msg =
+  case msg of
+    MoveCoin dst ->
+      case selectedCoin of
+        Just src -> "COIN: " ++ stringFromTuple src ++ " -> " ++ stringFromTuple dst
+        Nothing  -> ""
+    PlaceGuerilla pos -> "GUERILLA: " ++ stringFromTuple pos
+    _ -> ""
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+  let
+    logMessage = stringFromMessage model msg
+  in
   case msg of
     SelectCoin pos ->
       ( { model
@@ -103,6 +121,7 @@ update msg model =
         | coins = newCoins
         , selectedCoin = Nothing
         , turn = Guerilla
+        , log = if String.isEmpty logMessage then model.log else logMessage :: model.log
         }
       , Cmd.none
       )
@@ -111,6 +130,7 @@ update msg model =
         | guerillas = List.sort <| pos :: model.guerillas
         , guerillasRemaining = model.guerillasRemaining - 1
         , turn = Coin
+        , log = if String.isEmpty logMessage then model.log else logMessage :: model.log
         }
       , Cmd.none
       )
@@ -382,5 +402,7 @@ view model =
         )
       ]
     , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
-    , div [] [ Html.text <| "Turn: " ++ (fromTurn model.turn) ]
+    , div [] [ Html.text <| "Turn: " ++ fromTurn model.turn ]
+    , div [] [ Html.text <| "Log:" ]
+    , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
     ]
