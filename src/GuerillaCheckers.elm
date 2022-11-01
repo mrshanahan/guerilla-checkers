@@ -1,15 +1,9 @@
--- Press a button to generate a random number between 1 and 6.
---
--- Read how it works:
---   https://guide.elm-lang.org/effects/random.html
---
-
 module GuerillaCheckers exposing (..)
 
+import GuerillaCheckersBoard exposing (..)
 import Browser
 import Html exposing (..)
 import Html.Events exposing (..)
-import Random
 
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
@@ -26,32 +20,28 @@ main =
 
 -- MODEL
 
-type Turn = Coin | Guerilla
-
 type alias Model =
-  { coins : List (Int, Int)
-  , guerillas : List (Int, Int)
-  , guerillasRemaining: Int
-  , selectedCoin : Maybe (Int, Int)
-  , turn : Turn
+  { board : BoardState
   , log : List String
   }
 
 initBoard : Model
 initBoard =
   Model
-      [ (2, 3)
-      , (3, 4)
-      , (4, 5)
-      , (3, 2)
-      , (4, 3)
-      , (5, 4)
-      ]
-      []
-      66
-      Nothing
-      Guerilla
-      []
+    (BoardState
+        [ (2, 3)
+        , (3, 4)
+        , (4, 5)
+        , (3, 2)
+        , (4, 3)
+        , (5, 4)
+        ]
+        []
+        66
+        Nothing
+        Guerilla
+        [])
+    []
 
 init : () -> (Model, Cmd Msg)
 init _ = (initBoard, Cmd.none)
@@ -67,24 +57,10 @@ type Msg
 
 -- TODO: Boundary check on these guys on both ends
 
-moveCoin : List (Int, Int) -> (Int, Int) -> (Int, Int) -> List (Int, Int)
-moveCoin coins pos1 pos2 =
-  if not <| List.member pos1 coins then
-    coins
-  else if List.member pos2 coins then
-    coins
-  else if not <| List.member pos2 (coinNeighbors pos1) then
-    coins
-  else
-    List.filter ((/=) pos1) coins |> (::) pos2
-
-find : a -> List a -> Maybe a
-find x = List.filter ((==) x) >> List.head
-
 stringFromTuple : (Int, Int) -> String
 stringFromTuple (x,y) = "(" ++ (String.fromInt x) ++ "," ++ (String.fromInt y) ++ ")"
 
-stringFromMessage : Model -> Msg -> String
+stringFromMessage : BoardState -> Msg -> String
 stringFromMessage { selectedCoin, guerillasRemaining } msg =
   case msg of
     MoveCoin dst ->
@@ -97,16 +73,6 @@ stringFromMessage { selectedCoin, guerillasRemaining } msg =
     _ ->
       ""
 
-findCapture : List (Int, Int) -> (Int, Int) -> (Int, Int) -> Maybe (Int, Int)
-findCapture guerillas (x1,y1) (x2,y2) =
-  let
-    potential =
-      ( if x1 < x2 then x1 else x2
-      , if y1 < y2 then y1 else y2
-      )
-  in
-  find potential guerillas
-
 stringFromMaybe : (a -> String) -> Maybe a -> String
 stringFromMaybe f ma =
   Maybe.map f ma
@@ -115,77 +81,45 @@ stringFromMaybe f ma =
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   let
-    logMessage = stringFromMessage model msg
+    logMessage = stringFromMessage model.board msg
   in
   case msg of
     SelectCoin pos ->
-      ( { model
-        | selectedCoin = find pos model.coins
-        }
+      ( { model | board = selectCoin pos model.board }
       , Cmd.none
       )
     DeselectCoin ->
-      ( { model | selectedCoin = Nothing }
+      ( { model | board = deselectCoin model.board }
       , Cmd.none
       )
     MoveCoin newpos ->
       let
-        newCoins =
-          case model.selectedCoin of
-            Nothing  -> model.coins
-            Just pos -> moveCoin model.coins pos newpos
-        captured = model.selectedCoin |> Maybe.andThen (findCapture model.guerillas newpos)
-        newGuerillas =
-          case captured of
-            Nothing  -> model.guerillas
-            Just pos -> List.filter (\g -> g /= pos) model.guerillas
+        (newboard, captured) = moveSelectedCoin newpos model.board
         fullMessage =
           logMessage
           ++ stringFromMaybe (\pos -> " (captured: " ++ stringFromTuple pos ++ ")") captured
       in
       ( { model
-        | coins = newCoins
-        , guerillas = newGuerillas
-        , selectedCoin = Nothing
-        , turn = Guerilla
+        | board = newboard
         , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
         }
       , Cmd.none
       )
     PlaceGuerilla pos ->
       let
-        newGuerillas = List.sort <| pos :: model.guerillas
-
-        potentialCapturableSquares (x,y) = [ (x,y), (x+1,y), (x,y+1), (x+1,y+1) ]
-
-        isCapturableSquare (x,y) =
-          let
-            capturingGuerillas =
-              if x == 0 && y == 0      then [ (0,0) ]
-              else if x == 0 && y == 7 then [ (0,6) ]
-              else if x == 7 && y == 0 then [ (6,0) ]
-              else if x == 7 && y == 7 then [ (6,6) ]
-              else if x == 0           then [ (0,y-1), (0,y) ]
-              else if y == 0           then [ (x-1,0), (x,0) ]
-              else if x == 7           then [ (6,y-1), (6,y) ]
-              else if y == 7           then [ (x-1,6), (x,6) ]
-              else                          [ (x-1,y-1), (x,y-1), (x-1,y), (x,y) ]
-          in
-          List.all (\g -> List.member g newGuerillas) capturingGuerillas
-
-        captured =
-          potentialCapturableSquares pos
-          |> List.filter (\sq -> List.member sq model.coins && isCapturableSquare sq)
-          |> List.sort
-
-        newCoins = seqDiff model.coins captured
+          (newboard, captured) = placeGuerilla pos model.board
+          captureMessage =
+            if List.isEmpty captured then
+              ""
+            else
+              " (captured: "
+              ++ (List.map stringFromTuple captured |> String.join ",")
+              ++ ")"
+          fullMessage = logMessage ++ captureMessage
       in
       ( { model
-        | coins = newCoins
-        , guerillas = newGuerillas
-        , guerillasRemaining = model.guerillasRemaining - 1
-        , turn = Coin
-        , log = if String.isEmpty logMessage then model.log else logMessage :: model.log
+        | board = newboard
+        , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
         }
       , Cmd.none
       )
@@ -221,22 +155,6 @@ color : Color -> String
 color c = case c of
   White -> "lightgray"
   Black -> "gray"
-
-combinations : List a -> List b -> List (a,b)
-combinations xs ys =
-  case (xs, ys) of
-    ([], _)       -> []
-    (_, [])       -> []
-    (x::xs2, ys2) ->
-      List.append
-        (List.map (Tuple.pair x) ys2)
-        (combinations xs2 ys2)
-
-squareCoords : List (Int, Int)
-squareCoords = combinations (List.range 0 7) (List.range 0 7)
-
-nodeCoords : List (Int, Int)
-nodeCoords = combinations (List.range 0 6) (List.range 0 6)
 
 newBoardSq : Color -> (Int, Int) -> Svg Msg
 newBoardSq c (xcoord,ycoord) =
@@ -370,14 +288,7 @@ baseBoard =
   in
     List.append board nodes
 
-coinNeighbors : (Int, Int) -> List (Int, Int)
-coinNeighbors (x,y) =
-  let
-    isInRange (x2,y2) = x2 >= 0 && y2 >= 0 && x2 < 8 && y2 < 8
-  in
-    List.filter isInRange [(x-1,y-1), (x-1,y+1), (x+1,y-1), (x+1,y+1)]
-
-generateBoard : Model -> List (Svg Msg)
+generateBoard : BoardState -> List (Svg Msg)
 generateBoard
   { coins, selectedCoin, guerillas, turn } =
   let
@@ -396,7 +307,7 @@ generateBoard
   , List.map newGuerilla guerillas
   ] |> List.concat
 
-generateCoinTargets : Model -> List (Svg Msg)
+generateCoinTargets : BoardState -> List (Svg Msg)
 generateCoinTargets { coins, selectedCoin } =
   let
     flip f b a = f a b
@@ -409,29 +320,7 @@ generateCoinTargets { coins, selectedCoin } =
     Nothing ->
       []
 
--- NB: Assumes both lists are sorted
-seqDiff : List a -> List a -> List a
-seqDiff =
-  let
-      seqDiffInner acc xs ys =
-        case (xs,ys) of
-          ([],_)          -> List.reverse acc
-          (xs2,[])        -> List.append (List.reverse acc) xs2
-          (x::xs2,y::ys2) ->
-            if x == y then
-              seqDiffInner acc xs2 ys2
-            else
-              seqDiffInner (x::acc) xs2 (y::ys2)
-  in
-    seqDiffInner []
-
-availableGuerillaPlacements : Model -> List (Int,Int)
-availableGuerillaPlacements { guerillas, guerillasRemaining, turn } =
-  if guerillasRemaining > 0 && turn == Guerilla
-  then seqDiff nodeCoords guerillas
-  else []
-
-generateGuerillaPlacements : Model -> List (Svg Msg)
+generateGuerillaPlacements : BoardState -> List (Svg Msg)
 generateGuerillaPlacements =
   availableGuerillaPlacements >> List.map newGuerillaPlacement
 
@@ -450,16 +339,16 @@ view model =
         , height "400"
         ]
         (List.concat <|
-          [ (generateBoard model)
-          , (generateCoinTargets model)
-          , (generateGuerillaPlacements model)
+          [ (generateBoard model.board)
+          , (generateCoinTargets model.board)
+          , (generateGuerillaPlacements model.board)
           ]
         )
       ]
     , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
-    , div [] [ Html.text <| "Turn: " ++ fromTurn model.turn ]
-    , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.coins) ]
-    , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.guerillasRemaining ]
+    , div [] [ Html.text <| "Turn: " ++ fromTurn model.board.turn ]
+    , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
+    , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.board.guerillasRemaining ]
     , div [] [ Html.text <| "Log:" ]
     , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
     ]
