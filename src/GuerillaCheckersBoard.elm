@@ -8,7 +8,6 @@ type alias BoardState =
   , guerillasRemaining: Int
   , selectedCoin : Maybe (Int, Int)
   , turn : Turn
-  , log : List String
   }
 
 coinNeighbors : (Int, Int) -> List (Int, Int)

@@ -40,7 +40,7 @@ initBoard =
         66
         Nothing
         Guerilla
-        [])
+        )
     []
 
 init : () -> (Model, Cmd Msg)
@@ -69,7 +69,7 @@ stringFromMessage { selectedCoin, guerillasRemaining } msg =
         Nothing  -> ""
     PlaceGuerilla pos ->
       "GUERILLA: " ++ stringFromTuple pos ++
-      " (left: " ++ String.fromInt guerillasRemaining ++ ")"
+      " (left: " ++ String.fromInt (guerillasRemaining-1) ++ ")"
     _ ->
       ""
 
