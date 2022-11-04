@@ -11,10 +11,10 @@ Setup &amp; build in the way you normally build Elm.
 - Make sure Elm is installed: https://guide.elm-lang.org/install/elm.html
 - To build into a readily-distributable package, run `elm make` in the repository root on the `GuerillaCheckers.elm` file &amp; copy the resulting `index.html`:
 
-    $ elm make src/GuerillaCheckers.elm
+      $ elm make src/GuerillaCheckers.elm
 
 - To simply inspect it locally, run `elm reactor` in the repository root &amp; navigate to `src/GuerillaCheckers.elm`:
 
-    $ elm reactor
-    Go to http://localhost:8000 to see your project dashboard.
+      $ elm reactor
+      Go to http://localhost:8000 to see your project dashboard.
 
