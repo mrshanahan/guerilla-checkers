@@ -1,14 +1,29 @@
 module GuerillaCheckersBoard exposing (..)
 
-type Turn = Coin | Guerilla
+type Player = Coin | Guerilla
 
 type alias BoardState =
   { coins : List (Int, Int)
   , guerillas : List (Int, Int)
   , guerillasRemaining: Int
   , selectedCoin : Maybe (Int, Int)
-  , turn : Turn
+  , turn : Player
   }
+
+initBoard : BoardState
+initBoard =
+  BoardState
+    [ (2, 3)
+    , (3, 4)
+    , (4, 5)
+    , (3, 2)
+    , (4, 3)
+    , (5, 4)
+    ]
+    []
+    66
+    Nothing
+    Guerilla
 
 coinNeighbors : (Int, Int) -> List (Int, Int)
 coinNeighbors (x,y) =
@@ -145,3 +160,12 @@ placeGuerilla pos board =
     }
   , captured
   )
+
+winner : BoardState -> Maybe Player
+winner { guerillasRemaining, coins } =
+    if List.length coins == 0 then
+        Just Guerilla
+    else if guerillasRemaining <= 0 then
+        Just Coin
+    else
+        Nothing

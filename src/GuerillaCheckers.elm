@@ -25,26 +25,8 @@ type alias Model =
   , log : List String
   }
 
-initBoard : Model
-initBoard =
-  Model
-    (BoardState
-        [ (2, 3)
-        , (3, 4)
-        , (4, 5)
-        , (3, 2)
-        , (4, 3)
-        , (5, 4)
-        ]
-        []
-        66
-        Nothing
-        Guerilla
-        )
-    []
-
 init : () -> (Model, Cmd Msg)
-init _ = (initBoard, Cmd.none)
+init _ = (Model initBoard [], Cmd.none)
 
 -- UPDATE
 
@@ -74,24 +56,39 @@ stringFromMessage { selectedCoin, guerillasRemaining } msg =
       ""
 
 stringFromMaybe : (a -> String) -> Maybe a -> String
-stringFromMaybe f ma =
-  Maybe.map f ma
+stringFromMaybe f m =
+  Maybe.map f m
   |> Maybe.withDefault ""
+
+stringFromPlayer : Player -> String
+stringFromPlayer t =
+  case t of
+    Coin     -> "Coin"
+    Guerilla -> "Guerilla"
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+  let
+    newmodel =
+      case msg of
+        ResetBoard -> updateBoard msg model -- still want this to restart game
+        _          ->
+          case winner model.board of
+            Just _  -> model
+            Nothing -> updateBoard msg model
+  in
+  (newmodel, Cmd.none)
+
+updateBoard : Msg -> Model -> Model
+updateBoard msg model =
   let
     logMessage = stringFromMessage model.board msg
   in
   case msg of
     SelectCoin pos ->
-      ( { model | board = selectCoin pos model.board }
-      , Cmd.none
-      )
+      { model | board = selectCoin pos model.board }
     DeselectCoin ->
-      ( { model | board = deselectCoin model.board }
-      , Cmd.none
-      )
+      { model | board = deselectCoin model.board }
     MoveCoin newpos ->
       let
         (newboard, captured) = moveSelectedCoin newpos model.board
@@ -99,12 +96,10 @@ update msg model =
           logMessage
           ++ stringFromMaybe (\pos -> " (captured: " ++ stringFromTuple pos ++ ")") captured
       in
-      ( { model
-        | board = newboard
-        , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
-        }
-      , Cmd.none
-      )
+      { model
+      | board = newboard
+      , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
+      }
     PlaceGuerilla pos ->
       let
           (newboard, captured) = placeGuerilla pos model.board
@@ -117,14 +112,12 @@ update msg model =
               ++ ")"
           fullMessage = logMessage ++ captureMessage
       in
-      ( { model
-        | board = newboard
-        , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
-        }
-      , Cmd.none
-      )
+      { model
+      | board = newboard
+      , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
+      }
     ResetBoard ->
-      init ()
+      Model initBoard []
 
 -- SUBSCRIPTIONS
 
@@ -217,7 +210,7 @@ newGuerillaPlacement pos =
   ]
   []
 
-newCoin : Bool -> Turn -> (Int, Int) -> Svg Msg
+newCoin : Bool -> Player -> (Int, Int) -> Svg Msg
 newCoin selected turn pos =
   let
     (bx,by) = fromCoinCoords pos
@@ -254,10 +247,10 @@ newClickableSq (xcoord,ycoord) =
   ]
   []
 
-newSelectedCoin : Turn -> (Int, Int) -> Svg Msg
+newSelectedCoin : Player -> (Int, Int) -> Svg Msg
 newSelectedCoin = newCoin True
 
-newUnselectedCoin : Turn -> (Int, Int) -> Svg Msg
+newUnselectedCoin : Player -> (Int, Int) -> Svg Msg
 newUnselectedCoin = newCoin False
 
 fromNodeCoords : (Int, Int) -> (Int, Int)
@@ -324,31 +317,37 @@ generateGuerillaPlacements : BoardState -> List (Svg Msg)
 generateGuerillaPlacements =
   availableGuerillaPlacements >> List.map newGuerillaPlacement
 
-fromTurn : Turn -> String
-fromTurn t =
-  case t of
-    Guerilla -> "Guerilla"
-    Coin -> "Coin"
-
 view : Model -> Html Msg
 view model =
+  let
+    winnerDivs =
+      Maybe.map
+        (\p -> [ div [] [ Html.text <| "WINNER: " ++ stringFromPlayer p ] ])
+        (winner model.board)
+      |> Maybe.withDefault []
+  in
   div []
-    [ div []
-      [ svg
-        [ width "400"
-        , height "400"
-        ]
-        (List.concat <|
-          [ (generateBoard model.board)
-          , (generateCoinTargets model.board)
-          , (generateGuerillaPlacements model.board)
+    (
+      [ div []
+        [ svg
+          [ width "400"
+          , height "400"
           ]
-        )
+          (List.concat <|
+            [ (generateBoard model.board)
+            , (generateCoinTargets model.board)
+            , (generateGuerillaPlacements model.board)
+            ]
+          )
+        ]
+      , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
       ]
-    , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
-    , div [] [ Html.text <| "Turn: " ++ fromTurn model.board.turn ]
-    , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
-    , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.board.guerillasRemaining ]
-    , div [] [ Html.text <| "Log:" ]
-    , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
-    ]
+      ++ winnerDivs
+      ++
+      [ div [] [ Html.text <| "Turn: " ++ stringFromPlayer model.board.turn ]
+      , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
+      , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.board.guerillasRemaining ]
+      , div [] [ Html.text <| "Log:" ]
+      , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
+      ]
+    )
