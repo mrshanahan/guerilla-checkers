@@ -9,12 +9,14 @@ More details on the game: https://boardgamegeek.com/boardgame/71035/guerrilla-ch
 Setup &amp; build in the way you normally build Elm. 
 
 - Make sure Elm is installed: https://guide.elm-lang.org/install/elm.html
-- To build into a readily-distributable package, run `elm make` in the repository root on the `GuerillaCheckers.elm` file &amp; copy the resulting `index.html`:
+- To build into a readily-distributable package, run the `make.sh` in the repository root:
 
-      $ elm make src/GuerillaCheckers.elm
+      $ ./make.sh
 
-- To simply inspect it locally, run `elm reactor` in the repository root &amp; navigate to `src/GuerillaCheckers.elm`:
+  The complete package will be copied to `./dist`. You can load `./dist/index.html` in a browser to see the full application.
+- To inspect or modify the Elm code locally, run `elm reactor` in the repository root &amp; navigate to `src/GuerillaCheckers.elm`:
 
       $ elm reactor
       Go to http://localhost:8000 to see your project dashboard.
 
+  Note that you will be missing some CSS styling when running the application this way.
