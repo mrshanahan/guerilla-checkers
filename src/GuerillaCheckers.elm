@@ -3,6 +3,7 @@ module GuerillaCheckers exposing (..)
 import GuerillaCheckersBoard exposing (..)
 import Browser
 import Html exposing (..)
+import Html.Attributes exposing (rows, cols, readonly)
 import Html.Events exposing (..)
 
 import Svg exposing (..)
@@ -155,10 +156,10 @@ newBoardSq c (xcoord,ycoord) =
     (xcoord2,ycoord2) = fromSquareCoords (xcoord,ycoord)
   in
   rect
-    [ x <| String.fromInt xcoord2
-    , y <| String.fromInt ycoord2
-    , width "50"
-    , height "50"
+    [ x <| String.fromFloat xcoord2 ++ "em"
+    , y <| String.fromFloat ycoord2 ++ "em"
+    , width "5em"
+    , height "5em"
     , stroke colorConfig.border
     , strokeWidth "4"
     , fill <| color c
@@ -171,9 +172,9 @@ newBoardNode pos =
     (bx,by) = fromNodeCoords pos
   in
   circle
-  [ cx <| String.fromInt bx
-  , cy <| String.fromInt by
-  , r "5"
+  [ cx <| String.fromFloat bx ++ "em"
+  , cy <| String.fromFloat by ++ "em"
+  , r "0.5em"
   , fill colorConfig.border
   , stroke colorConfig.border
   ]
@@ -185,9 +186,9 @@ newGuerilla pos =
     (bx,by) = fromNodeCoords pos
   in
   circle
-  [ cx <| String.fromInt bx
-  , cy <| String.fromInt by
-  , r "10"
+  [ cx <| String.fromFloat bx ++ "em"
+  , cy <| String.fromFloat by ++ "em"
+  , r "1em"
   , fill colorConfig.guerilla
   , stroke colorConfig.guerilla
   ]
@@ -199,9 +200,9 @@ newGuerillaPlacement pos =
     (bx,by) = fromNodeCoords pos
   in
   circle
-  [ cx <| String.fromInt bx
-  , cy <| String.fromInt by
-  , r "10"
+  [ cx <| String.fromFloat bx ++ "em"
+  , cy <| String.fromFloat by ++ "em"
+  , r "1em"
   , stroke "transparent"
   --, fill "yellow"
   , fill "transparent"
@@ -219,9 +220,9 @@ newCoin selected turn pos =
   in
   circle
   ( List.append
-    [ cx <| String.fromInt bx
-    , cy <| String.fromInt by
-    , r "20"
+    [ cx <| String.fromFloat bx ++ "em"
+    , cy <| String.fromFloat by ++ "em"
+    , r "2em"
     , fill c
     , stroke c
     ]
@@ -235,12 +236,12 @@ newClickableSq (xcoord,ycoord) =
     (xcoordr,ycoordr) = fromSquareCoords (xcoord,ycoord)
   in
   rect
-  [ x <| String.fromInt xcoordr
-  , y <| String.fromInt ycoordr
-  , width "50"
-  , height "50"
+  [ x <| String.fromFloat xcoordr ++ "em"
+  , y <| String.fromFloat ycoordr ++ "em"
+  , width "5em"
+  , height "5em"
   , stroke "transparent"
-  , strokeWidth "0"
+  , strokeWidth "0em"
   , fill colorConfig.coin
   , fillOpacity "0.2"
   , onClick (MoveCoin (xcoord,ycoord))
@@ -253,22 +254,22 @@ newSelectedCoin = newCoin True
 newUnselectedCoin : Player -> (Int, Int) -> Svg Msg
 newUnselectedCoin = newCoin False
 
-fromNodeCoords : (Int, Int) -> (Int, Int)
+fromNodeCoords : (Int, Int) -> (Float, Float)
 fromNodeCoords (x, y) =
-  ( (x+1) * 50
-  , (y+1) * 50
+  ( toFloat (x+1) * 5.0
+  , toFloat (y+1) * 5.0
   )
 
-fromSquareCoords : (Int, Int) -> (Int, Int)
+fromSquareCoords : (Int, Int) -> (Float, Float)
 fromSquareCoords (x, y) =
-  ( x * 50
-  , y * 50
+  ( toFloat x * 5.0
+  , toFloat y * 5.0
   )
 
-fromCoinCoords : (Int, Int) -> (Int, Int)
+fromCoinCoords : (Int, Int) -> (Float, Float)
 fromCoinCoords (x, y) =
-  ( x * 50 + 25
-  , y * 50 + 25
+  ( toFloat x * 5.0 + 2.5
+  , toFloat y * 5.0 + 2.5
   )
 
 baseBoard : List (Svg Msg)
@@ -326,28 +327,31 @@ view model =
         (winner model.board)
       |> Maybe.withDefault []
   in
-  div []
-    (
-      [ div []
-        [ svg
-          [ width "400"
-          , height "400"
-          ]
-          (List.concat <|
-            [ (generateBoard model.board)
-            , (generateCoinTargets model.board)
-            , (generateGuerillaPlacements model.board)
+  div [ class "elm" ]
+    [ div [ class "board" ]
+      (
+        [ div []
+          [ svg
+            [ width "40em"
+            , height "40em"
             ]
-          )
+            (
+              List.concat <|
+                [ (generateBoard model.board)
+                , (generateCoinTargets model.board)
+                , (generateGuerillaPlacements model.board)
+                ]
+            )
+          ]
+        , div [] [ Html.b [] [ Html.text "Turn: " ], Html.text <| stringFromPlayer model.board.turn ]
+        , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
         ]
-      , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
-      ]
-      ++ winnerDivs
-      ++
-      [ div [] [ Html.text <| "Turn: " ++ stringFromPlayer model.board.turn ]
-      , div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
+        ++ winnerDivs
+      )
+    , div [ class "controls" ]
+      [ div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
       , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.board.guerillasRemaining ]
       , div [] [ Html.text <| "Log:" ]
-      , div [] [ ul [] <| List.map (\l -> li [] [ Html.text l ]) model.log ]
+      , div [] [ Html.textarea [ Html.Attributes.style "resize" "none", rows 20, cols 50, readonly True ] [ Html.text <| String.join "\n" model.log ] ]
       ]
-    )
+    ]

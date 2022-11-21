@@ -1,4 +1,17 @@
-body {
-    width: auto;
+.elm {
+    margin: auto;
+    width: 90em;
+    display: flex;
+    /* flex-wrap: wrap; */
+    flex-direction: row;
+    align-content: space-between;
+}
+
+.board {
     text-align: center;
+}
+
+.controls {
+    display: inline-block;
+    text-align: left;
 }
