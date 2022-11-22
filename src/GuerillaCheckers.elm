@@ -8,6 +8,9 @@ import Html.Events exposing (..)
 
 import Svg exposing (..)
 import Svg.Attributes exposing (..)
+import Svg.Events exposing (..)
+
+import Json.Decode as Decode
 
 -- MAIN
 
@@ -24,10 +27,11 @@ main =
 type alias Model =
   { board : BoardState
   , log : List String
+  , mousedGuerillaPlacement : Maybe (Int, Int)
   }
 
 init : () -> (Model, Cmd Msg)
-init _ = (Model initBoard [], Cmd.none)
+init _ = (Model initBoard [] Nothing, Cmd.none)
 
 -- UPDATE
 
@@ -36,6 +40,8 @@ type Msg
   | DeselectCoin
   | MoveCoin (Int, Int)
   | PlaceGuerilla (Int, Int)
+  | MouseOverGuerillaPlacement (Int, Int)
+  | MouseLeaveGuerillaPlacement (Int, Int)
   | ResetBoard
 
 -- TODO: Boundary check on these guys on both ends
@@ -116,9 +122,14 @@ updateBoard msg model =
       { model
       | board = newboard
       , log = if String.isEmpty fullMessage then model.log else fullMessage :: model.log
+      , mousedGuerillaPlacement = Nothing
       }
+    MouseOverGuerillaPlacement pos ->
+      { model | mousedGuerillaPlacement = Just pos }
+    MouseLeaveGuerillaPlacement _ ->
+      { model | mousedGuerillaPlacement = Nothing }
     ResetBoard ->
-      Model initBoard []
+      Model initBoard [] Nothing
 
 -- SUBSCRIPTIONS
 
@@ -194,9 +205,14 @@ newGuerilla pos =
   ]
   []
 
-newGuerillaPlacement : (Int, Int) -> Svg Msg
-newGuerillaPlacement pos =
+newGuerillaPlacement : Maybe (Int, Int) -> (Int, Int) -> Svg Msg
+newGuerillaPlacement mousedOver pos =
   let
+    c = case mousedOver of
+      Nothing -> "transparent"
+      Just pos2 ->
+        if pos == pos2 then "grey"
+        else                       "transparent"
     (bx,by) = fromNodeCoords pos
   in
   circle
@@ -204,10 +220,12 @@ newGuerillaPlacement pos =
   , cy <| String.fromFloat by ++ "em"
   , r "1em"
   , stroke "transparent"
-  --, fill "yellow"
-  , fill "transparent"
-  , fillOpacity "0.3"
-  , onClick (PlaceGuerilla pos)
+  , fill c
+  , fillOpacity "0.5"
+  , Svg.Events.onClick (PlaceGuerilla pos)
+  , Svg.Events.on "mouseover"  (Decode.map MouseOverGuerillaPlacement (Decode.succeed pos))
+  , Svg.Events.on "mouseenter" (Decode.map MouseOverGuerillaPlacement (Decode.succeed pos))
+  , Svg.Events.on "mouseleave" (Decode.map MouseLeaveGuerillaPlacement (Decode.succeed pos))
   ]
   []
 
@@ -216,7 +234,7 @@ newCoin selected turn pos =
   let
     (bx,by) = fromCoinCoords pos
     c = if selected then colorConfig.selectedCoin else colorConfig.coin
-    eh = if turn == Coin then [ onClick (if selected then DeselectCoin else SelectCoin pos) ] else []
+    eh = if turn == Coin then [ Svg.Events.onClick (if selected then DeselectCoin else SelectCoin pos) ] else []
   in
   circle
   ( List.append
@@ -244,7 +262,7 @@ newClickableSq (xcoord,ycoord) =
   , strokeWidth "0em"
   , fill colorConfig.coin
   , fillOpacity "0.2"
-  , onClick (MoveCoin (xcoord,ycoord))
+  , Svg.Events.onClick (MoveCoin (xcoord,ycoord))
   ]
   []
 
@@ -314,9 +332,9 @@ generateCoinTargets { coins, selectedCoin } =
     Nothing ->
       []
 
-generateGuerillaPlacements : BoardState -> List (Svg Msg)
-generateGuerillaPlacements =
-  availableGuerillaPlacements >> List.map newGuerillaPlacement
+generateGuerillaPlacements : Maybe (Int, Int) -> BoardState -> List (Svg Msg)
+generateGuerillaPlacements mousedOver =
+  availableGuerillaPlacements >> List.map (newGuerillaPlacement mousedOver)
 
 view : Model -> Html Msg
 view model =
@@ -339,12 +357,12 @@ view model =
               List.concat <|
                 [ (generateBoard model.board)
                 , (generateCoinTargets model.board)
-                , (generateGuerillaPlacements model.board)
+                , (generateGuerillaPlacements model.mousedGuerillaPlacement model.board)
                 ]
             )
           ]
         , div [] [ Html.b [] [ Html.text "Turn: " ], Html.text <| stringFromPlayer model.board.turn ]
-        , div [] [ button [ onClick ResetBoard ] [ Html.text "Reset" ] ]
+        , div [] [ button [ Svg.Events.onClick ResetBoard ] [ Html.text "Reset" ] ]
         ]
         ++ winnerDivs
       )
