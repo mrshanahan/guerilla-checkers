@@ -1,6 +1,7 @@
 module GuerillaCheckers exposing (..)
 
 import GuerillaCheckersBoard exposing (..)
+
 import Browser
 import Html exposing (..)
 import Html.Attributes exposing (rows, cols, readonly)
@@ -361,15 +362,34 @@ view model =
                 ]
             )
           ]
-        , div [] [ Html.b [] [ Html.text "Turn: " ], Html.text <| stringFromPlayer model.board.turn ]
-        , div [] [ button [ Svg.Events.onClick ResetBoard ] [ Html.text "Reset" ] ]
+        , div [ id "turn-indicator" ] [ Html.b [] [ Html.text "Turn: " ], Html.text <| stringFromPlayer model.board.turn ]
         ]
         ++ winnerDivs
       )
-    , div [ class "controls" ]
-      [ div [] [ Html.text <| "Coins remaining: " ++ String.fromInt (List.length model.board.coins) ]
-      , div [] [ Html.text <| "Guerillas remaining: " ++ String.fromInt model.board.guerillasRemaining ]
-      , div [] [ Html.text <| "Log:" ]
-      , div [] [ Html.textarea [ Html.Attributes.style "resize" "none", rows 20, cols 50, readonly True ] [ Html.text <| String.join "\n" model.log ] ]
+    , div [ class "sidebar" ]
+      [ div [ class "sidebar-section" ]
+        [ table [ class "state" ]
+          [ tr []
+            [ td [ class "state-key" ] [ Html.text "Turn" ]
+            , td [ class "state-value" ] [ Html.text <| stringFromPlayer model.board.turn ]
+            ]
+          , tr []
+            [ td [ class "state-key" ] [ Html.text "Coins remaining" ]
+            , td [ class "state-value" ] [ Html.text <| String.fromInt (List.length model.board.coins) ]
+            ]
+          , tr []
+            [ td [ class "state-key" ] [ Html.text "Guerillas remaining" ]
+            , td [ class "state-value" ] [ Html.text <| String.fromInt model.board.guerillasRemaining ]
+            ]
+          ]
+        ]
+      , div [ class "sidebar-section"]
+        [ div [ class "log" ]
+          [ div [] [ Html.textarea [ Html.Attributes.style "resize" "none", rows 20, cols 50, readonly True ] [ Html.text <| String.join "\n" model.log ] ]
+          ]
+        ]
+      , div [ class "sidebar-section" ]
+        [ div [ class "controls" ] [ button [ id "reset-button", Svg.Events.onClick ResetBoard ] [ Html.text "Reset" ] ]
+        ]
       ]
     ]
