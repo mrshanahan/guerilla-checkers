@@ -353,6 +353,7 @@ view model =
           [ svg
             [ width "40em"
             , height "40em"
+            , viewBox "0 0 650 650"
             ]
             (
               List.concat <|
